@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SALARY AND BONUS TRACKER</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .profile {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .profile img {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+    }
+    button {
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    input {
+      width: 95%;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
+      color: white;
+    }
+    .totals {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-around;
+      font-weight: bold;
+    }
+    canvas {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SALARY AND BONUS TRACKER</h1>
+
+    <div class="profile">
+      <div>
+        <p><b>Welcome, msiku</b></p>
+      </div>
+      <div>
+        <img src="https://i.ibb.co/7z2R9nZ/avatar.png" alt="Avatar">
+        <button onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+    <h3>Add / Edit daily record</h3>
+    <form id="recordForm">
+      <input type="date" id="date" required><br>
+      <input type="number" id="salary" placeholder="Salary (Tsh)" required><br>
+      <input type="number" id="bonus" placeholder="Bonus (Tsh)" required><br>
+      <button type="submit">Save</button>
+      <button type="button" onclick="clearForm()">Clear</button>
+    </form>
+
+    <h3>Records</h3>
+    <table id="recordsTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Salary</th>
+          <th>Bonus</th>
+          <th>Total</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="totals">
+      <div>Total Salary: <span id="totalSalary">0</span></div>
+      <div>Total Bonus: <span id="totalBonus">0</span></div>
+      <div>Grand Total: <span id="grandTotal">0</span></div>
+    </div>
+
+    <canvas id="lineChart"></canvas>
+    <canvas id="barChart"></canvas>
+  </div>
+
+  <script>
+    let records = JSON.parse(localStorage.getItem("records")) || [];
+    let editIndex = null;
+
+    const form = document.getElementById("recordForm");
+    const tbody = document.querySelector("#recordsTable tbody");
+
+    function renderRecords() {
+      tbody.innerHTML = "";
+      let totalSalary = 0, totalBonus = 0;
+
+      records.forEach((rec, i) => {
+        let row = `<tr>
+          <td>${rec.date}</td>
+          <td>${rec.salary}</td>
+          <td>${rec.bonus}</td>
+          <td>${rec.salary + rec.bonus}</td>
+          <td>
+            <button onclick="editRecord(${i})">Edit</button>
+            <button onclick="deleteRecord(${i})">Delete</button>
+          </td>
+        </tr>`;
+        tbody.innerHTML += row;
+        totalSalary += rec.salary;
+        totalBonus += rec.bonus;
+      });
+
+      document.getElementById("totalSalary").textContent = totalSalary;
+      document.getElementById("totalBonus").textContent = totalBonus;
+      document.getElementById("grandTotal").textContent = totalSalary + totalBonus;
+
+      updateCharts();
+    }
+
+    function saveRecord(e) {
+      e.preventDefault();
+      let date = document.getElementById("date").value;
+      let salary = parseInt(document.getElementById("salary").value);
+      let bonus = parseInt(document.getElementById("bonus").value);
+
+      if (editIndex !== null) {
+        records[editIndex] = { date, salary, bonus };
+        editIndex = null;
+      } else {
+        records.push({ date, salary, bonus });
+      }
+      localStorage.setItem("records", JSON.stringify(records));
+      renderRecords();
+      form.reset();
+    }
+
+    function editRecord(i) {
+      let rec = records[i];
+      document.getElementById("date").value = rec.date;
+      document.getElementById("salary").value = rec.salary;
+      document.getElementById("bonus").value = rec.bonus;
+      editIndex = i;
+    }
+
+    function deleteRecord(i) {
+      records.splice(i, 1);
+      localStorage.setItem("records", JSON.stringify(records));
+      renderRecords();
+    }
+
+    function clearForm() {
+      form.reset();
+      editIndex = null;
+    }
+
+    function logout() {
+      alert("Logged out!");
+    }
+
+    let lineChart, barChart;
+    function updateCharts() {
+      let labels = records.map(r => r.date);
+      let salaryData = records.map(r => r.salary);
+      let bonusData = records.map(r => r.bonus);
+
+      if (lineChart) lineChart.destroy();
+      if (barChart) barChart.destroy();
+
+      lineChart = new Chart(document.getElementById("lineChart"), {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            { label: "Salary", data: salaryData, borderColor: "#6a11cb", fill: false },
+            { label: "Bonus", data: bonusData, borderColor: "#2575fc", fill: false }
+          ]
+        }
+      });
+
+      barChart = new Chart(document.getElementById("barChart"), {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [
+            { label: "Salary", data: salaryData, backgroundColor: "#6a11cb" },
+            { label: "Bonus", data: bonusData, backgroundColor: "#2575fc" }
+          ]
+        }
+      });
+    }
+
+    form.addEventListener("submit", saveRecord);
+    renderRecords();
+  </script>
+</body>
+</html>
